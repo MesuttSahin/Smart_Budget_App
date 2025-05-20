@@ -51,7 +51,7 @@ def login():
 
     conn = sqlite3.connect("data/butce.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE name = ? AND passw = ?",(name,passw))
+    cursor.execute("SELECT * FROM users WHERE username = ? AND password = ?",(name,passw))
     user = cursor.fetchone()
     conn.close()
     
