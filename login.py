@@ -3,73 +3,45 @@ from tkinter import messagebox
 import os
 import sqlite3
 
-def init_db():
-    if not os.path.exists("data"):
-        os.mkdir("data")
-    
-    conn = sqlite3.connect("data/butce.db")
-    cursor = conn.cursor()
-    cursor.execute("""
-                   CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                   username TEXT UNIQUE NOT NULL,
-                   password TEXT NOT NULL
-                   )
-                   
-                   """)
-    conn.commit()
-    conn.close()
+from db import init_db, login_user, register_user
+
     
 def register():
     name = entry_username.get()
     passw = entry_password.get()
-    
+
     if not name or not passw:
-        messagebox.showwarning("Uyarı", "Lütfen tüm alanları doldurun. ")
+        messagebox.showwarning("Uyarı", "Lütfen tüm alanları doldurun.")
         return
-    
-    conn = sqlite3.connect("data/butce.db")
-    cursor = conn.cursor()
-    
-    try:
-        cursor.execute("""
-                       INSERT INTO users (username,password) VALUES(?,?)
-                       
-                       """,(name,passw))
-        conn.commit()
+
+    if register_user(name, passw):
         messagebox.showinfo("Başarılı", "Kayıt başarılı! Giriş yapabilirsiniz.")
-    except sqlite3.IntegrityError:
+    else:
         messagebox.showerror("Hata", "Bu kullanıcı adı zaten mevcut.")
-    conn.close()
+
+    
+    
+    
+   
     
 def login():
     name = entry_username.get()
     passw = entry_password.get()
-    
+
     if not name or not passw:
-        messagebox.showwarning("Uyarı", "Lütfen tüm alanları doldurun. ")
+        messagebox.showwarning("Uyarı", "Lütfen tüm alanları doldurun.")
         return
 
-    conn = sqlite3.connect("data/butce.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE username = ? AND password = ?",(name,passw))
-    user = cursor.fetchone()
-    conn.close()
-    
-    if user:
+    if login_user(name, passw):
         messagebox.showinfo("Giriş Başarılı", f"Hoş geldiniz, {name}!")
         root.destroy()
         import dashboard
+        dashboard.run_dashboard(name)
     else:
-        messagebox.showerror("Hata", "Kullanıcı adı veya şifre hatalı.")    
+        messagebox.showerror("Hata", "Kullanıcı adı veya şifre hatalı.")
+  
     
     
-    
-
-
-
-
-
-
 
 root = tk.Tk()
 root.title("Akıllı Bütçe - Giriş")
