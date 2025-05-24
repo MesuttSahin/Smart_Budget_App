@@ -116,4 +116,39 @@ def get_filtered_transactions(username, start_date=None, end_date=None, category
     return results
 
 
+def delete_transaction(trans_id):
+    conn = sqlite3.connect("data/butce.db")
+    c = conn.cursor()
+    c.execute("DELETE FROM transactions WHERE id=?", (trans_id,))
+    conn.commit()
+    conn.close()
+
+def update_transaction(trans_id, category, amount, date, transac_type):
+    conn = sqlite3.connect("data/butce.db")
+    c = conn.cursor()
+    c.execute("""
+        UPDATE transactions SET 
+            category=?, 
+            amount=?, 
+            date=?, 
+            types=?
+        WHERE id=?
+    """, (category, amount, date, transac_type, trans_id))
+    conn.commit()
+    conn.close()
+
+def get_transactions_by_category(username):
+    conn = sqlite3.connect("data/butce.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT category, SUM(amount)
+        FROM transactions
+        WHERE username = ? AND types = 'Harcama'
+        GROUP BY category
+    """, (username,))
+    results = cursor.fetchall()
+    conn.close()
+    return results
+
+
     

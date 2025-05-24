@@ -4,8 +4,10 @@ from tkinter import messagebox
 from datetime import datetime
 import db
 from db import get_filtered_transactions
+from graph import draw_category_bar_chart
 
-current_user = None  # Global kullanıcı adı
+
+current_user = None  
 
 def run_dashboard(username):
     global current_user
@@ -13,7 +15,7 @@ def run_dashboard(username):
 
     root = tk.Tk()
     root.title(f"Akıllı Bütçe - Ana Panel - Hoşgeldiniz {username}")
-    root.geometry("900x600")
+    root.geometry("1100x700")
     root.configure(padx=10, pady=10)
 
     categories = ["Yiyecek", "Ulaşım", "Kira", "Maaş", "Eğlence", "Fatura", "Diğer"]
@@ -39,6 +41,8 @@ def run_dashboard(username):
             messagebox.showinfo("Filtreleme Başarılı", f"{len(results)} kayıt listelendi.")
         except Exception as e:
             messagebox.showerror("Hata", f"Filtreleme hatası:\n{e}")
+            
+        draw_category_bar_chart(frame_graph, current_user,results)
 
     def on_add_transaction():
         category = combo_category.get()
@@ -54,6 +58,81 @@ def run_dashboard(username):
             entry_date.delete(0, tk.END)
             entry_date.insert(0, datetime.today().strftime("%d / %m / %Y"))
             type_var.set("Harcama")
+            
+        results = db.get_transactions_by_category(current_user)
+        
+        for widget in frame_graph.winfo_children():
+            widget.destroy()
+        
+        draw_category_bar_chart(frame_graph, current_user, results)
+
+            
+    def on_row_select(event):
+        selected = tree.focus()
+        if not selected:
+            return
+
+        values = tree.item(selected, 'values')
+        if not values:
+            return
+
+        trans_id, username, category, amount, date, trans_type = values
+
+        combo_category.set(category)
+        entry_amount.delete(0, tk.END)
+        entry_amount.insert(0, amount)
+        entry_date.delete(0, tk.END)
+        entry_date.insert(0, date)
+        type_var.set(trans_type)
+
+        entry_date.trans_id = trans_id
+
+    def update_selected():
+        if not hasattr(entry_date, 'trans_id'):
+            messagebox.showwarning("Uyarı", "Lütfen güncellenecek kaydı seçin.")
+            return
+
+        trans_id = entry_date.trans_id
+        category = combo_category.get()
+        amount = entry_amount.get()
+        date = entry_date.get()
+        transac_type = type_var.get()
+
+        try:
+            db.update_transaction(trans_id, category, amount, date, transac_type)
+            messagebox.showinfo("Güncelleme", "Kayıt başarıyla güncellendi.")
+            on_filter()  
+        except Exception as e:
+            messagebox.showerror("Hata", f"Güncelleme hatası:\n{e}")
+
+    def delete_selected():
+        selected = tree.focus()
+        if not selected:
+            messagebox.showwarning("Uyarı", "Lütfen silinecek kaydı seçin.")
+            return
+
+        values = tree.item(selected, 'values')
+        if not values:
+            return
+
+        trans_id = values[0]
+
+        cevap = messagebox.askyesno("Sil", f"Bu kaydı silmek istediğinize emin misiniz? (ID: {trans_id})")
+        if cevap:
+            try:
+                db.delete_transaction(trans_id)
+                tree.delete(selected)
+                messagebox.showinfo("Silme", "Kayıt silindi.")
+            except Exception as e:
+                messagebox.showerror("Hata", f"Silme hatası:\n{e}")
+                
+    def toggle_graphics():
+        if frame_graph.winfo_viewable():
+            frame_graph.grid_remove()
+        else:
+            frame_graph.grid()
+
+    results = db.get_transactions_by_category(current_user)
 
     # Sol panel - Harcama/Gelir Ekle
     frame_left = tk.LabelFrame(root, text="Harcama / Gelir Ekle", padx=10, pady=10)
@@ -88,11 +167,14 @@ def run_dashboard(username):
 
     label_monthly_total = tk.Label(frame_right, text="Aylık Toplam: ₺0")
     label_monthly_total.pack()
+    
+    
 
     # Grafik alanı
-    frame_graph = tk.LabelFrame(root, text="Grafikler", padx=10, pady=10)
+    frame_graph = tk.LabelFrame(root, text="Grafikler", padx=10, pady=10,height=200)
     frame_graph.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=10, pady=10)
-    tk.Label(frame_graph, text="Grafikler burada gösterilecek (matplotlib)").pack()
+    frame_graph.grid_remove() 
+    
 
     # Alt panel - filtreleme alanı
     frame_bottom = tk.LabelFrame(root, text="Filtreleme ve İşlemler", padx=10, pady=10)
@@ -112,12 +194,21 @@ def run_dashboard(username):
     tk.Button(frame_bottom, text="Döviz Güncelle").grid(row=0, column=5, padx=5)
     tk.Button(frame_bottom, text="Veri Dışa Aktar").grid(row=0, column=6, padx=5)
     tk.Button(frame_bottom, text="Çıkış", command=root.quit).grid(row=0, column=7, padx=10)
+    
+    
+    btn_update = tk.Button(frame_bottom, text="Güncelle", command=lambda: update_selected())
+    btn_update.grid(row=0, column=8, padx=5)
+
+    btn_delete = tk.Button(frame_bottom, text="Sil", command=lambda: delete_selected())
+    btn_delete.grid(row=0, column=9, padx=5)
+    tk.Button(frame_bottom, text="Grafikleri Göster/Gizle", command=toggle_graphics).grid(row=0, column=10, padx=5)
+
 
     # Treeview
     columns = ("id", "username", "category", "amount", "date", "type")
     tree = ttk.Treeview(root, columns=columns, show="headings")
 
-    # Başlıkları ayarla
+    # Başlık ayarları
     tree.heading("id", text="ID")
     tree.heading("username", text="Kullanıcı")
     tree.heading("category", text="Kategori")
@@ -134,12 +225,14 @@ def run_dashboard(username):
     tree.column("type", width=80, anchor="center")
 
     tree.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=10, pady=10)
+    tree.bind("<<TreeviewSelect>>", on_row_select)
 
-    # Grid ayarları
     root.grid_rowconfigure(3, weight=1)
     root.grid_columnconfigure(1, weight=1)
 
-    # Veritabanını başlat
     db.init_transaction_db()
+    
+    draw_category_bar_chart(frame_graph, current_user,results)
+
 
     root.mainloop()
