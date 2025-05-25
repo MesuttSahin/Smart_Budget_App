@@ -4,7 +4,9 @@ from tkinter import messagebox
 from datetime import datetime
 import db
 from db import get_filtered_transactions
+import export
 from graph import draw_category_bar_chart
+from stats import get_daily_summary, get_monthly_summary, get_user_statistics
 
 
 current_user = None  
@@ -65,6 +67,8 @@ def run_dashboard(username):
             widget.destroy()
         
         draw_category_bar_chart(frame_graph, current_user, results)
+        update_summary_labels()
+
 
             
     def on_row_select(event):
@@ -104,6 +108,9 @@ def run_dashboard(username):
             on_filter()  
         except Exception as e:
             messagebox.showerror("Hata", f"Güncelleme hatası:\n{e}")
+        
+        update_summary_labels()
+
 
     def delete_selected():
         selected = tree.focus()
@@ -125,6 +132,9 @@ def run_dashboard(username):
                 messagebox.showinfo("Silme", "Kayıt silindi.")
             except Exception as e:
                 messagebox.showerror("Hata", f"Silme hatası:\n{e}")
+        
+        update_summary_labels()
+
                 
     def toggle_graphics():
         if frame_graph.winfo_viewable():
@@ -133,6 +143,32 @@ def run_dashboard(username):
             frame_graph.grid()
 
     results = db.get_transactions_by_category(current_user)
+    
+    def show_stats():
+        stats = get_user_statistics(current_user)
+        info = (
+        f"Toplam Gelir: {stats['total_income']}₺\n"
+        f"Toplam Harcama: {stats['total_expense']}₺\n"
+        f"Net Bütçe: {stats['net_budget']}₺\n"
+        f"En Çok Harcama Yapılan Kategori: {stats['top_category']} ({stats['top_category_amount']}₺)\n"
+        f"Aylık Ortalama Harcama: {stats['avg_monthly_expense']:.2f}₺"
+        )
+        messagebox.showinfo("İstatistik Özeti", info)
+    
+    def update_summary_labels():
+        daily = get_daily_summary(current_user)
+        monthly = get_monthly_summary(current_user)
+        
+
+        # Gelir - Harcama farkı
+        daily_total = daily.get("income", 0) - daily.get("expense", 0)
+        monthly_total = monthly.get("income", 0) - monthly.get("expense", 0)
+
+        label_daily_total.config(text=f"Günlük Toplam: ₺{daily_total:.2f}")
+        label_monthly_total.config(text=f"Aylık Toplam: ₺{monthly_total:.2f}")
+
+
+
 
     # Sol panel - Harcama/Gelir Ekle
     frame_left = tk.LabelFrame(root, text="Harcama / Gelir Ekle", padx=10, pady=10)
@@ -191,17 +227,19 @@ def run_dashboard(username):
     combo_filter_category.grid(row=0, column=3)
 
     tk.Button(frame_bottom, text="Filtrele", command=on_filter).grid(row=0, column=4, padx=10)
-    tk.Button(frame_bottom, text="Döviz Güncelle").grid(row=0, column=5, padx=5)
-    tk.Button(frame_bottom, text="Veri Dışa Aktar").grid(row=0, column=6, padx=5)
-    tk.Button(frame_bottom, text="Çıkış", command=root.quit).grid(row=0, column=7, padx=10)
+    tk.Button(frame_bottom, text="Veri Dışa Aktar", command=lambda: export.export_to_csv(current_user)).grid(row=0, column=5, padx=5)
+    tk.Button(frame_bottom, text="Çıkış", command=root.quit).grid(row=0, column=6, padx=10)
     
     
     btn_update = tk.Button(frame_bottom, text="Güncelle", command=lambda: update_selected())
-    btn_update.grid(row=0, column=8, padx=5)
+    btn_update.grid(row=0, column=7, padx=5)
 
     btn_delete = tk.Button(frame_bottom, text="Sil", command=lambda: delete_selected())
-    btn_delete.grid(row=0, column=9, padx=5)
-    tk.Button(frame_bottom, text="Grafikleri Göster/Gizle", command=toggle_graphics).grid(row=0, column=10, padx=5)
+    btn_delete.grid(row=0, column=8, padx=5)
+    tk.Button(frame_bottom, text="Grafikleri Göster/Gizle", command=toggle_graphics).grid(row=0, column=9, padx=5)
+    btn_stats = tk.Button(frame_bottom, text="İstatistik Özeti", command=show_stats)
+    btn_stats.grid(row=0, column=10, padx=10, pady=10)
+
 
 
     # Treeview
@@ -233,6 +271,6 @@ def run_dashboard(username):
     db.init_transaction_db()
     
     draw_category_bar_chart(frame_graph, current_user,results)
-
+    update_summary_labels()
 
     root.mainloop()

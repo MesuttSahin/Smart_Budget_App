@@ -34,7 +34,6 @@ def add_transaction(username, category, amount, date, transac_type):
         return False
 
     try:
-        # Tarih doğrulaması (GG/AA/YYYY formatında)
         datetime.strptime(date.strip(), "%d / %m / %Y")
     except ValueError:
         messagebox.showerror("Hatalı Giriş", "Tarih formatı GG / AA / YYYY olmalıdır.")
@@ -149,6 +148,105 @@ def get_transactions_by_category(username):
     results = cursor.fetchall()
     conn.close()
     return results
+
+def get_total_income(username):
+    conn = sqlite3.connect("data/butce.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+                   SELECT SUM(amount) FROM transactions
+                   WHERE username=? AND types="Gelir"
+                   
+                   """,(username,))
+    result = cursor.fetchone()[0] or 0
+    conn.close()
+    return result
+
+def get_total_expense(username):
+    conn = sqlite3.connect("data/butce.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT SUM(amount) FROM transactions 
+        WHERE username=? AND types='Harcama'
+    """, (username,))
+    result = cursor.fetchone()[0] or 0
+    conn.close()
+    return result
+
+def get_most_spent_category(username):
+    conn = sqlite3.connect("data/butce.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT category, SUM(amount) as total FROM transactions 
+        WHERE username=? AND types='Harcama' 
+        GROUP BY category ORDER BY total DESC LIMIT 1
+    """, (username,))
+    row = cursor.fetchone()
+    conn.close()
+    return row if row else (None, 0)
+
+def get_avg_monthly_expense(username):
+    conn = sqlite3.connect("data/butce.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT strftime('%Y-%m', date) as month, SUM(amount) 
+        FROM transactions 
+        WHERE username=? AND types='Harcama'
+        GROUP BY month
+    """, (username,))
+    rows = cursor.fetchall()
+    conn.close()
+    if not rows:
+        return 0
+    return sum(row[1] for row in rows) / len(rows)
+
+def get_total_by_date(username, date_str):
+    conn = sqlite3.connect("data/butce.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT types, SUM(amount)
+        FROM transactions
+        WHERE username = ? AND date = ?
+        GROUP BY types
+    """, (username, date_str))
+    rows = cursor.fetchall()
+    conn.close()
+
+    summary = {"income": 0.0, "expense": 0.0}
+    for t_type, total in rows:
+        if t_type == "Gelir":
+            summary["income"] = total
+        elif t_type == "Harcama":
+            summary["expense"] = total
+    return summary
+
+
+def get_total_by_month(username, year, month):
+    month_str = f"{month:02d}"
+    year_str = str(year)
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT types, SUM(amount)
+        FROM transactions
+        WHERE username = ?
+          AND substr(date, 11, 4) = ?
+          AND substr(date, 6, 2) = ?
+        GROUP BY types
+    """, (username, year_str, month_str))
+    rows = cursor.fetchall()
+    conn.close()
+
+    summary = {"income": 0.0, "expense": 0.0}
+    for t_type, total in rows:
+        if t_type == "Gelir":
+            summary["income"] = total
+        elif t_type == "Harcama":
+            summary["expense"] = total
+    return summary
+
+
+    
 
 
     
